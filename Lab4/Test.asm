@@ -45,8 +45,8 @@ main:
 #
 #####################################################################
 ### load $a0 and $a1
-	lw		$a0, value7		# target 0x402DF851
-	lw		$a1, value8		# target 0x402DF851
+	lw		$a0, value0		# target 0x402DF851
+	lw		$a1, value2		# target 0x402DF851
 	
 	jal		flpadd				# jump to flpadd and save position to $ra
 	add 	$a0, $zero, $v0	# Print the bits from the returned value $v0
@@ -172,7 +172,7 @@ findNewExponent:
 		
 shiftRight:
 	srlv	$t4, $t4, $t6
-	addi	$t7, $zero, 8			# $t6 = $t1 + 0
+	addi	$t7, $zero, 7			# $t6 = $t1 + 0
 	sub		$t6, $t7, $t6		# $t6 = $t1 - $t2	
 	sub		$t2, $t2, $t6		# $t2 = $t1 + $t2	
 	j		combine				# jump to combine
