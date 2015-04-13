@@ -10,18 +10,16 @@ E:			.asciiz "E"
 F:			.asciiz "F"
 PreStr:		.asciiz "\n0x"
 value0:  	.word 0x3F800000 # 1.0
-value1:  	.word 0x40000000 #
-value2:  	.word 0x40200000 #
-value3:  	.word 0x402AAAAA #
-value4:  	.word 0x402D5554 #
-value5:  	.word 0x402DDDDC #
-value6:  	.word 0x402DF49D #
-value7:  	.word 0x402DF7DD #
-value8:  	.word 0x402DF834 #
-value9:  	.word 0x402DF850 #
-value10:  	.word 0x402DF851 #
+value1:  	.word 0xBF800000 # -1.0
+value2:  	.word 0xC0266666 # -2.6
+value3:  	.word 0x40533333 # 3.3
+value4:  	.word 0x3FCCCCCD # 1.6
+value5:  	.word 0x4019999A # 2.4
+value6:  	.word 0x420551EC # 33.33
+value7:  	.word 0x40FFFF00 # 7.999878
+value8:  	.word 0xC0FFFFE0 # -7.9999847
 #
-value11:  	.word 0x0FFFFFFF #
+value11:  	.word 0x0FFFFFFF #0x420551ec
 value12:  	.word 0x40200000 #
 		
     .text
@@ -45,139 +43,164 @@ main:
 #
 #
 #
-	
-#	lw		$a0, value11		# target 0x402DF851
-#	add		$v0, $a0, $zero		# $v0 = $t1 + $t2	
-#	jal 	print_bit
-	
-#	lw		$a1, value12		# target 0x402DF851
-#	add		$v0, $a1, $zero		# $v0 = $t1 + $t2	
-#	jal 	print_bit
 #####################################################################
 ### load $a0 and $a1
 	lw		$a0, value0		# target 0x402DF851
-	lw		$a1, value0		# target 0x402DF851
-
-#extract sign of $a0 ==> $t0 $a1 ==> $t1
+	lw		$a1, value2		# target 0x402DF851
+	
+	jal		flpadd				# jump to flpadd and save position to $ra
+	add 	$a0, $zero, $v0	# Print the bits from the returned value $v0
+	jal 	print_bit		# Call print_bit
+	
+	li 		$v0, 10		# End the program
+	syscall
+#Implement flpadd procedure
+flpadd:
+#####################################################################
+#extract sign of $a0 ==> $t0 and $a1 ==> $t1
 	li		$t6, 0x80000000				# $t6 = smask
 	and		$t0, $a0, $t6				
 	and		$t1, $a1, $t6
-#extract exponent of $a0 ==> $t2 $a1 ==> $t3
+#extract exponent of $a0 ==> $t2 and $a1 ==> $t3
 	li		$t6, 0x7F800000				# $t6 = emask
 	and		$t2, $a0, $t6
 	and		$t3, $a1, $t6
-#extract fraction of $a0 ==> $t4 $a0 ==> $t5
+#extract fraction of $a0 ==> $t4 and $a0 ==> $t5
 	li		$t6, 0x007FFFFF				# $t6 = fmask
 	and		$t4, $a0, $t6
 	and		$t5, $a1, $t6
-	li		$t6, 0x00800000
+	li		$t6, 0x00800000	# add leading bit 1
 	or		$t4, $t4, $t6
-	or		$t5, $t5, $t6
-#####################################################################
-
+	or		$t5, $t5, $t6	
 #####################################################################
 # Calculation
 #####################################################################
-
-# Compare exponent
+# Compare sign bit
+# (+ + +) or (- + -)
+	bne		$t0, $t1, signNotEq	# if $t0 != $t1 then signNotEq
+								# if $t0 == $t1 then add two fractions
+#####################################################################
+# Compare exponents
 	srl		$t2, $t2, 23
 	srl		$t3, $t3, 23		
-
-eqExopnent:		
+#	If e0 == e1
 	beq		$t2, $t3, completedShift	# if $t2 == $t3 then completedShift
-
 	bgt		$t2, $t3, a0isBig			# if $t2 > $t3 then a0isBig
 
-# Shift a0  
+# a1 is bigger, Shift a0  
 a1isBig:	
-	sub		$t2, $t3, $t2		# $t6 = $t4 - $t1
-
-	li		$t6,23 				# $t6 = 23
-	bge		$t2, $t6, a0shiftall	# if $t6 >= 23 then shiftall
-
-	srlv	$t4, $t4, $t2	#Shift fraction of a0 as amount of $t3
-	add 	$t2, $t3, $zero		# $t2 = $t3	
-	j		afterShift				# jump to afterShift
-
-a0shiftall:
-	add 	$t2, $t3, $zero		# $t2 = $t3	
-	srl		$t4, $t4, 24
-
-afterShift:			
-	j		completedShift		# jump to completedShift
-
-# Shift a1
+	sub		$t2, $t3, $t2		# $t2 = $t3 - $t2
+	srlv	$t4, $t4, $t2		# Shift fraction of a0 as amount of $t2
+	add 	$t2, $t3, $zero		# $t2 = $t3	Use a1's exponent
+	j		completedShift				# jump to afterShift
+# a0 is bigger, Shift a1
 a0isBig:
-	sub		$t3, $t2, $t3		# $t6 = $t4 - $t1
-
-	li		$t6,	23 		# $t7 = 23
-	bge		$t3, $t6, a1shiftall	# if $t6 >= 23 then shiftall
-
+	sub		$t3, $t2, $t3		# $t3 = $t2 - $t3
 	#shift fraction
 	srlv	$t5, $t5, $t3	#Shift fraction of a0 as amount of $t3
-	j		afterShift				# jump to afterShift
-
-a1shiftall:
-	srl		$t5, $t5, 24		
 
 completedShift:			
 #####################################################################
-# Compare sign bit
-# (+ + +) or (- + -)
-	bne		$t0, $t1, signNotEq	# if $t0 != $t3 then signNotEq
-								# if $t0 == $t3 then add two fractions
-
-#####################################################################
-
 # add fraction a + b or  -a + -b
-addFraction:
 	add		$t4, $t4, $t5		# $t4 = $t4 + $t5
 	
 #overflow check
-	srl		$t6, $t4, 24		# $t6 = smask	
-	bnez	$t6, overflow		# if $t4 >= $t6 then overflow
+	srl		$t6, $t4, 24		# check the leading bit == or != 1	
+	bnez	$t6, overflow		# if $t6 != 0 then overflow
 	j		noOverflow			# jump to noOverflow	
 overflow:	
 	srl		$t4, $t4, 1
 	addi	$t2, $t2, 1			# $t2 = $t2 + 1 exponent
-
 noOverflow:
 	j		combine				# jump to combine
-
 #####################################################################
 # (+ + -) or (- + +)
 signNotEq:
+#####################################################################
+# Compare exponents
+	srl		$t2, $t2, 23
+	srl		$t3, $t3, 23		
 
+	sll		$t4, $t4, 7
+	sll		$t5, $t5, 7
+#####################################################################
+#	If e0 == e1	
+	beq		$t2, $t3, completedShiftSub	# if $t2 == $t3 then completedShift
+	bgt		$t2, $t3, a0isBigSub			# if $t2 > $t3 then a0isBig
+
+# a1 is bigger, Shift a0  
+a1isBigSub:	
+	sub		$t2, $t3, $t2		# $t2 = $t3 - $t2
+	srlv	$t4, $t4, $t2		# Shift fraction of a0 as amount of $t2
+	add 	$t2, $t3, $zero		# $t2 = $t3	Use a1's exponent
+	j		completedShiftSub				# jump to afterShift
+# a0 is bigger, Shift a1
+a0isBigSub:
+	sub		$t3, $t2, $t3		# $t3 = $t2 - $t3
+	#shift fraction
+	srlv	$t5, $t5, $t3	#Shift fraction of a0 as amount of $t3
+completedShiftSub:		
+#####################################################################	
 #Compare Fraction
-	bge		$t4, $t5, a0gea1	# if $t4 >= $t5 then target
-
+		# Call print_bit
+	bge		$t4, $t5, a0gea1	# if $t4 >= $t5 then a0gea1(a1 > a0)
 # a0 < a1
 	sub		$t4, $t5, $t4		# $t4 = $t5 - $t4
+			
 # set sign as the sign of a1
 	move	$t0, $t1			# $t0 = $t1
-	j		combine				# jump to combine
+	j		underflowCheck		# jump to underflowCheck
 
 a0gea1:	
 	sub		$t4, $t4, $t5		# $t4 = $t4 - $t5
-
+	
+	
+#underflow check
+underflowCheck:
+	li		$t7, 31					# $t7 = 31	
+underflowloop:
+	srlv	$t6, $t4, $t7
+		
+	bnez	$t6, findNewExponent		# if $t6 != 0 then overflow ==> 
+	addi	$t7, $t7, -1			# $t7 = $t1 + 0
+	bnez	$t7, underflowloop
+findNewExponent:	
+	addi	$t6, $zero, 23			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t0 = $t1 - $t2
+		
+	bgez	$t6, shiftRight
+	j		shiftLeft				# jump to shiftLeft
+		
+shiftRight:
+	srlv	$t4, $t4, $t6
+	addi	$t7, $zero, 8			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t6 = $t1 - $t2	
+	sub		$t2, $t2, $t6		# $t2 = $t1 + $t2	
+	j		combine				# jump to combine
+		
+shiftLeft:
+	sllv	$t4, $t4, $t6	
+	addi	$t7, $zero, 9			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t0 = $t1 - $t2						
+	sub		$t2, $t2, $t6		# $t2 = $t1 + $t2	
 
 #####################################################################
-# combine S + E + F
+# combine (S or E or F)
 combine:
-	sll		$t2, $t2, 23
-	li		$t6, 0x007FFFFF		# 
-	and		$t4, $t4, $t6		# Remove 1.		
+	sll		$t2, $t2, 23	
+	li		$t6, 0x007FFFFF		#
+	bnez	$t4, notZero
+	li		$t2, 0x7F800000		# Zero
+notZero:	 
+	and		$t4, $t4, $t6		# Remove the leading bit 1.		
 	add		$v0, $zero, $zero	# $v0 = 0
-
+		
 	or		$v0, $v0, $t0		# combine sign
 	or		$v0, $v0, $t2		# combine exponent
 	or		$v0, $v0, $t4		# combine fraction
+	jr 		$ra	
 
-### print sum	
-	jal 	print_bit	
-	
-j end
-
+#implement print_bit procedure
 #####################################################################
 # Debug print out
 # print every bit in $v0,
@@ -191,7 +214,7 @@ print_bit:
 # initial	
 	li		$t6, 0x80000000 			# $t6 = 1000 0000 0000 0000 0000 0000 0000 0000
 # save the target value	into $t7   	
-	move 	$t7, $v0		# $t7 = $v0
+	move 	$t7, $a0		# $t7 = $v0
 
 printLoop:	           
 	and		$t8, $t6, $t7
@@ -224,27 +247,27 @@ Print:
 	li		$v0, 0x00000010		# $t8 = 	
 	beq		$t6, $v0, print_space	# if $t6 != $t8 then print_space	
 	j		no_space				# jump to no_space
-	
+
 print_space:	
 	la 		$a0, space
 	li 		$v0, 4
 	syscall
 
 no_space:	
-				
+			
 	# check if it is the last bit	
 	srl		$t6, $t6, 1		
 	bnez	$t6, printLoop
 #####################################################################
-	 
+ 
 #newline    
 	la 		$a0, PreStr
 	li 		$v0, 4
 	syscall
-	
+
 	li		$t6, 0xF0000000 		# $t6 = 
 	li		$t9, 28		# $t9 = 
-	
+
 hexloop:
 	and		$t8, $t7, $t6	# read 4 bits each time
 	srlv	$t8, $t8, $t9

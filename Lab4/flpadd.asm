@@ -141,6 +141,11 @@ flpadd:
 #####################################################################
 # Calculation
 #####################################################################
+# Compare sign bit
+# (+ + +) or (- + -)
+	bne		$t0, $t1, signNotEq	# if $t0 != $t1 then signNotEq
+								# if $t0 == $t1 then add two fractions
+#####################################################################
 # Compare exponents
 	srl		$t2, $t2, 23
 	srl		$t3, $t3, 23		
@@ -154,24 +159,17 @@ a1isBig:
 	srlv	$t4, $t4, $t2		# Shift fraction of a0 as amount of $t2
 	add 	$t2, $t3, $zero		# $t2 = $t3	Use a1's exponent
 	j		completedShift				# jump to afterShift
-
 # a0 is bigger, Shift a1
 a0isBig:
 	sub		$t3, $t2, $t3		# $t3 = $t2 - $t3
 	#shift fraction
 	srlv	$t5, $t5, $t3	#Shift fraction of a0 as amount of $t3
-	
+
 completedShift:			
 #####################################################################
-# Compare sign bit
-# (+ + +) or (- + -)
-	bne		$t0, $t1, signNotEq	# if $t0 != $t1 then signNotEq
-								# if $t0 == $t1 then add two fractions
-#####################################################################
 # add fraction a + b or  -a + -b
-addFraction:
 	add		$t4, $t4, $t5		# $t4 = $t4 + $t5
-		
+	
 #overflow check
 	srl		$t6, $t4, 24		# check the leading bit == or != 1	
 	bnez	$t6, overflow		# if $t6 != 0 then overflow
@@ -181,28 +179,88 @@ overflow:
 	addi	$t2, $t2, 1			# $t2 = $t2 + 1 exponent
 noOverflow:
 	j		combine				# jump to combine
-
 #####################################################################
 # (+ + -) or (- + +)
 signNotEq:
+#####################################################################
+# Compare exponents
+	srl		$t2, $t2, 23
+	srl		$t3, $t3, 23		
+
+	sll		$t4, $t4, 7
+	sll		$t5, $t5, 7
+#####################################################################
+#	If e0 == e1	
+	beq		$t2, $t3, completedShiftSub	# if $t2 == $t3 then completedShift
+	bgt		$t2, $t3, a0isBigSub			# if $t2 > $t3 then a0isBig
+
+# a1 is bigger, Shift a0  
+a1isBigSub:	
+	sub		$t2, $t3, $t2		# $t2 = $t3 - $t2
+	srlv	$t4, $t4, $t2		# Shift fraction of a0 as amount of $t2
+	add 	$t2, $t3, $zero		# $t2 = $t3	Use a1's exponent
+	j		completedShiftSub				# jump to afterShift
+# a0 is bigger, Shift a1
+a0isBigSub:
+	sub		$t3, $t2, $t3		# $t3 = $t2 - $t3
+	#shift fraction
+	srlv	$t5, $t5, $t3	#Shift fraction of a0 as amount of $t3
+completedShiftSub:		
+#####################################################################	
 #Compare Fraction
+		# Call print_bit
 	bge		$t4, $t5, a0gea1	# if $t4 >= $t5 then a0gea1(a1 > a0)
 # a0 < a1
 	sub		$t4, $t5, $t4		# $t4 = $t5 - $t4
+			
 # set sign as the sign of a1
 	move	$t0, $t1			# $t0 = $t1
-	j		combine				# jump to combine
+	j		underflowCheck		# jump to underflowCheck
 
 a0gea1:	
 	sub		$t4, $t4, $t5		# $t4 = $t4 - $t5
+	
+	
+#underflow check
+underflowCheck:
+	li		$t7, 31					# $t7 = 31	
+underflowloop:
+	srlv	$t6, $t4, $t7
+		
+	bnez	$t6, findNewExponent		# if $t6 != 0 then overflow ==> 
+	addi	$t7, $t7, -1			# $t7 = $t1 + 0
+	bnez	$t7, underflowloop
+findNewExponent:	
+	addi	$t6, $zero, 23			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t0 = $t1 - $t2
+		
+	bgez	$t6, shiftRight
+	j		shiftLeft				# jump to shiftLeft
+		
+shiftRight:
+	srlv	$t4, $t4, $t6
+	addi	$t7, $zero, 8			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t6 = $t1 - $t2	
+	sub		$t2, $t2, $t6		# $t2 = $t1 + $t2	
+	j		combine				# jump to combine
+		
+shiftLeft:
+	sllv	$t4, $t4, $t6	
+	addi	$t7, $zero, 9			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t0 = $t1 - $t2						
+	sub		$t2, $t2, $t6		# $t2 = $t1 + $t2	
+
 #####################################################################
 # combine (S or E or F)
 combine:
-	sll		$t2, $t2, 23
-	li		$t6, 0x007FFFFF		# 
+	sll		$t2, $t2, 23	
+	li		$t6, 0x007FFFFF		#
+	bnez	$t4, notZero
+	li		$t2, 0x7F800000		# Zero
+notZero:	 
 	and		$t4, $t4, $t6		# Remove the leading bit 1.		
 	add		$v0, $zero, $zero	# $v0 = 0
-	
+		
 	or		$v0, $v0, $t0		# combine sign
 	or		$v0, $v0, $t2		# combine exponent
 	or		$v0, $v0, $t4		# combine fraction
