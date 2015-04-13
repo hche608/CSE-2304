@@ -208,7 +208,7 @@ a0isBigSub:
 completedShiftSub:		
 #####################################################################	
 #Compare Fraction
-		# Call print_bit
+		# Call print_bit		
 	bge		$t4, $t5, a0gea1	# if $t4 >= $t5 then a0gea1(a1 > a0)
 # a0 < a1
 	sub		$t4, $t5, $t4		# $t4 = $t5 - $t4
@@ -219,7 +219,6 @@ completedShiftSub:
 
 a0gea1:	
 	sub		$t4, $t4, $t5		# $t4 = $t4 - $t5
-	
 	
 #underflow check
 underflowCheck:
@@ -245,11 +244,13 @@ shiftRight:
 	j		combine				# jump to combine
 		
 shiftLeft:
-	sllv	$t4, $t4, $t6	
-	addi	$t7, $zero, 9			# $t6 = $t1 + 0
-	sub		$t6, $t7, $t6		# $t0 = $t1 - $t2						
+	addi	$t7, $zero, 0			# $t6 = $t1 + 0
+	sub		$t6, $t7, $t6		# $t6 = $t1 - $t2
+	sllv	$t4, $t4, $t6
+	addi	$t6, $t6, 7			# $t6 = $t1 + 0					
 	sub		$t2, $t2, $t6		# $t2 = $t1 + $t2	
-
+	#add		$a0, $t6, $zero		# $a0 = $t1 + $t2
+	#jal		print_bit				# jump to print_bit and save position to $ra	
 #####################################################################
 # combine (S or E or F)
 combine:
