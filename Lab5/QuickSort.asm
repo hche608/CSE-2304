@@ -7,7 +7,7 @@
 
 		.data	# Data declaration section
 prompt:				.asciiz "Please Enter A Number:"
-displayResult:		.asciiz "After QuickSort: "
+displayResult:		.asciiz "After QuickSort: \n"
 space:				.asciiz ", "
 newline:			.asciiz "\n"
 
@@ -137,27 +137,29 @@ Swap:
 		jr 		$ra					# jump to $ra
 	
 printArray:
-		addi	$t2, $zero, 10			# $t2 = $t1 + $t2	
-		la 		$t0, array
+		addi	$t2, $a2, 1			# $t2 = size	
+		la 		$t0, array			
+		
 		la 		$a0, displayResult 
 		add 	$v0, $zero, 4
 		syscall
-outputloop: 
-		
+
+outputloop: 		
 		l.s		$f12, 0($t0)
 		li 		$v0, 2
 		syscall
 	
 		add 	$t0, $t0, 4
 			
-		addi 	$t2, $t2, -1			# counter for input loop
+		addi 	$t2, $t2, -1		# check for the last element in the array
 		beqz 	$t2, skipspace
 		
 		la 		$a0, space 
 		add 	$v0, $zero, 4
 		syscall
-skipspace:
-			
-		bgtz 	$t2, outputloop
-		jr		$ra						# jump to $ra
+		b		outputloop			# branch to outputloop
+		
+skipspace:			
+		#bgtz 	$t2, outputloop
+		jr		$ra					# jump to $ra
 		
