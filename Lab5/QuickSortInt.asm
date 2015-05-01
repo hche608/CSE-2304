@@ -7,7 +7,8 @@
 
 		.data	# Data declaration section
 prompt:				.asciiz "Please Enter An Integer:"
-displayResult:		.asciiz "After QuickSort: \n"
+displayResult:		.asciiz "\nAfter QuickSort: \n"
+displayInput:		.asciiz "Before QuickSort: \n"
 space:				.asciiz ", "
 newline:			.asciiz "\n"
 
@@ -34,11 +35,23 @@ inputloop:
 		addi 	$t1, $t1, -1 			# counter--
 		bgtz 	$t1, inputloop
 		
+		
+		la 		$a0, displayInput 
+		add 	$v0, $zero, 4
+		syscall
+		
+		addi	$a2, $zero, 9			# $a2 = 9		
+		jal		printArray				# jump to printArray and save position to $ra
+		
 		# initial variables
 		la		$a0, array				# $a0 = array
 		add		$a1, $zero, $zero		# $a1 = 0
 		addi	$a2, $zero, 9			# $a2 = 9
 		jal		QuickSort				# jump to QUICKSORT
+		
+		la 		$a0, displayResult 
+		add 	$v0, $zero, 4
+		syscall
 		
 		jal		printArray				# jump to printArray and save position to $ra
 		
@@ -137,11 +150,7 @@ Swap:
 	
 printArray:
 		addi	$t2, $a2, 1			# $t2 = size	
-		la 		$t0, array			
-		
-		la 		$a0, displayResult 
-		add 	$v0, $zero, 4
-		syscall
+		la 		$t0, array					
 
 outputloop: 		
 		lw		$a0, 0($t0)
